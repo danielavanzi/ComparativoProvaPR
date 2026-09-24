@@ -1,0 +1,448 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Comparativo de Avaliações - Dinâmico</title>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/xlsx/0.18.5/xlsx.full.min.js"></script>
+    <style>
+        :root {
+            --primary: #2c3e50;
+            --success: #198754;
+            --danger: #dc3545;
+            --neutral: #6c757d;
+            --bg-light: #f8f9fa;
+        }
+        body {
+            font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+            margin: 0;
+            padding: 20px;
+            background-color: #f4f6f9;
+            color: #333;
+        }
+        .container {
+            max-width: 100%;
+            margin: 0 auto;
+            background: #fff;
+            padding: 20px 30px;
+            border-radius: 8px;
+            box-shadow: 0 4px 6px rgba(0,0,0,0.1);
+        }
+        h1 {
+            text-align: center;
+            color: var(--primary);
+            margin-bottom: 20px;
+        }
+        .controls {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 20px;
+            justify-content: center;
+            margin-bottom: 20px;
+            background: var(--bg-light);
+            padding: 20px;
+            border-radius: 8px;
+            border: 1px solid #dee2e6;
+        }
+        .file-upload {
+            display: flex;
+            flex-direction: column;
+            gap: 8px;
+            font-weight: bold;
+        }
+        input[type="file"] {
+            padding: 8px;
+            background: #fff;
+            border: 1px solid #ccc;
+            border-radius: 4px;
+        }
+        button {
+            padding: 12px 24px;
+            font-size: 16px;
+            font-weight: bold;
+            color: #fff;
+            background-color: #0056b3;
+            border: none;
+            border-radius: 4px;
+            cursor: pointer;
+            transition: background 0.3s;
+        }
+        button:hover { background-color: #004494; }
+        
+        .header-actions {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            margin-bottom: 15px;
+        }
+
+        .btn-pdf {
+            background-color: var(--success);
+            display: flex;
+            align-items: center;
+            gap: 8px;
+        }
+        .btn-pdf:hover { background-color: #146c43; }
+
+        /* Painel de Filtros */
+        .filter-panel {
+            display: none;
+            background: #fff;
+            padding: 15px 20px;
+            border-radius: 8px;
+            border: 1px solid #c8ced3;
+            margin-bottom: 20px;
+            box-shadow: 0 2px 4px rgba(0,0,0,0.05);
+        }
+        .filter-panel h3 { margin-top: 0; margin-bottom: 15px; color: var(--primary); font-size: 18px; }
+        .filter-group { margin-bottom: 15px; }
+        .checkbox-grid {
+            display: flex;
+            flex-wrap: wrap;
+            gap: 15px;
+        }
+        .checkbox-item {
+            display: flex;
+            align-items: center;
+            gap: 5px;
+            background: var(--bg-light);
+            padding: 8px 12px;
+            border-radius: 4px;
+            border: 1px solid #ddd;
+            cursor: pointer;
+            user-select: none;
+        }
+        .checkbox-item:hover { background: #e9ecef; }
+
+        /* Tabela e Rolagem Otimizada */
+        .table-responsive {
+            overflow: auto; 
+            max-height: 70vh;
+            border: 1px solid #dee2e6;
+            position: relative;
+        }
+        table {
+            width: 100%;
+            border-collapse: separate; 
+            border-spacing: 0;
+            font-size: 14px;
+            white-space: nowrap;
+        }
+        th, td {
+            border-right: 1px solid #dee2e6;
+            border-bottom: 1px solid #dee2e6;
+            padding: 10px 12px;
+            text-align: center;
+            background-color: inherit;
+        }
+        th:first-child, td:first-child { border-left: 1px solid #dee2e6; }
+        thead tr:first-child th { border-top: 1px solid #dee2e6; }
+
+        /* =========================================
+           LÓGICA DOS CABEÇALHOS FIXOS (STICKY)
+           ========================================= */
+        thead th {
+            position: sticky;
+            z-index: 10;
+        }
+        thead tr:first-child th {
+            top: 0;
+        }
+        tbody td.sticky-col {
+            position: sticky;
+            left: 0;
+            z-index: 5;
+            background-color: #fff;
+            border-right: 2px solid #888;
+            text-align: left;
+        }
+        thead tr:first-child th.sticky-col {
+            position: sticky;
+            left: 0;
+            top: 0;
+            z-index: 20;
+            background-color: var(--primary);
+            color: #fff;
+            border-right: 2px solid #888;
+        }
+
+        tbody tr:nth-child(even) td.sticky-col { background-color: #f8f9fa; }
+        tbody tr:hover td.sticky-col { background-color: #e2e6ea; }
+        tbody tr:nth-child(even) { background-color: #f8f9fa; }
+        tbody tr:hover { background-color: #e2e6ea; }
+        
+        .positive { color: var(--success); font-weight: bold; }
+        .negative { color: var(--danger); font-weight: bold; }
+        .neutral { color: var(--neutral); }
+        .spinner { display: none; text-align: center; font-size: 18px; color: #0056b3; margin: 20px 0; }
+
+        /* =========================================
+           CONFIGURAÇÕES DE EXPORTAÇÃO (PDF / PRINT)
+           ========================================= */
+        @media print {
+            body { background: #fff; margin: 0; padding: 0; color: #000; }
+            .container { box-shadow: none; padding: 0; margin: 0; width: 100%; max-width: none; }
+            .controls, .filter-panel, h1, .btn-pdf, .header-actions { display: none !important; }
+            .table-responsive { 
+                overflow: visible !important; 
+                max-height: none !important; 
+                border: none; 
+            }
+            th, td { position: static !important; }
+            table { border-collapse: collapse; page-break-inside: auto; }
+            tr { page-break-inside: avoid; page-break-after: auto; }
+            thead { display: table-header-group; } 
+        }
+    </style>
+</head>
+<body>
+
+<div class="container">
+    <h1>Análise Dinâmica de Avaliações</h1>
+    
+    <div class="controls">
+        <div class="file-upload">
+            <label for="file1">Upload da Avaliação 1 (.xlsx):</label>
+            <input type="file" id="file1" accept=".xlsx, .xls">
+        </div>
+        <div class="file-upload">
+            <label for="file2">Upload da Avaliação 2 (.xlsx):</label>
+            <input type="file" id="file2" accept=".xlsx, .xls">
+        </div>
+        <div style="display: flex; align-items: flex-end;">
+            <button onclick="carregarDados()">Carregar Arquivos</button>
+        </div>
+    </div>
+
+    <!-- Painel de Filtros e Botão PDF -->
+    <div id="filter-panel" class="filter-panel">
+        <div class="header-actions">
+            <h3 style="margin: 0;">Ajustes de Visualização</h3>
+            <button class="btn-pdf" onclick="exportarPDF()">
+                <svg width="18" height="18" fill="currentColor" viewBox="0 0 16 16">
+                    <path d="M.5 9.9a.5.5 0 0 1 .5.5v2.5a1 1 0 0 0 1 1h12a1 1 0 0 0 1-1v-2.5a.5.5 0 0 1 1 0v2.5a2 2 0 0 1-2 2H2a2 2 0 0 1-2-2v-2.5a.5.5 0 0 1 .5-.5z"/>
+                    <path d="M7.646 11.854a.5.5 0 0 0 .708 0l3-3a.5.5 0 0 0-.708-.708L8.5 10.293V1.5a.5.5 0 0 0-1 0v8.793L5.354 8.146a.5.5 0 1 0-.708.708l3 3z"/>
+                </svg>
+                Exportar para PDF
+            </button>
+        </div>
+        
+        <div class="filter-group">
+            <label class="checkbox-item" style="display: inline-flex; font-weight: bold; border-color: #0056b3; background: #e6f2ff;">
+                <input type="checkbox" id="show-diff" checked onchange="renderizarTabela()"> 
+                Mostrar Coluna de Comparativo (Diferença)
+            </label>
+        </div>
+
+        <div class="filter-group" style="margin-bottom: 0;">
+            <strong style="display:block; margin-bottom: 8px;">Selecione os Componentes para exibir:</strong>
+            <div id="component-filters" class="checkbox-grid">
+                <!-- Checkboxes gerados via JS -->
+            </div>
+        </div>
+    </div>
+
+    <div id="loading" class="spinner">Processando dados, aguarde...</div>
+    <div class="table-responsive" id="result-container"></div>
+</div>
+
+<script>
+    let globalData1 = {};
+    let globalData2 = {};
+    let globalComponentes = [];
+    let globalAlunosCGM = [];
+
+    const paletaCores = [
+        { header: '#0056b3', bg: '#f0f6fc' }, 
+        { header: '#198754', bg: '#f2f9f5' }, 
+        { header: '#d63384', bg: '#fdf2f7' }, 
+        { header: '#fd7e14', bg: '#fff6ef' }, 
+        { header: '#6f42c1', bg: '#f6f2fc' }, 
+        { header: '#0dcaf0', bg: '#f0fcfd' }, 
+        { header: '#dc3545', bg: '#fdf2f3' }, 
+        { header: '#20c997', bg: '#f0fcf9' }  
+    ];
+
+    async function lerExcel(file) {
+        return new Promise((resolve, reject) => {
+            const reader = new FileReader();
+            reader.onload = (e) => {
+                const data = new Uint8Array(e.target.result);
+                const workbook = XLSX.read(data, { type: 'array' });
+                const json = XLSX.utils.sheet_to_json(workbook.Sheets[workbook.SheetNames[0]], { header: 1, defval: null });
+                resolve(json);
+            };
+            reader.onerror = (err) => reject(err);
+            reader.readAsArrayBuffer(file);
+        });
+    }
+
+    async function carregarDados() {
+        const file1 = document.getElementById('file1').files[0];
+        const file2 = document.getElementById('file2').files[0];
+        const loading = document.getElementById('loading');
+
+        if (!file1 || !file2) {
+            alert("Por favor, selecione os dois relatórios antes de prosseguir.");
+            return;
+        }
+
+        loading.style.display = 'block';
+        document.getElementById('result-container').innerHTML = '';
+        document.getElementById('filter-panel').style.display = 'none';
+
+        try {
+            const data1 = await lerExcel(file1);
+            const data2 = await lerExcel(file2);
+            processarNaMemoria(data1, data2);
+        } catch (error) {
+            console.error(error);
+            alert("Erro ao ler os arquivos.");
+        } finally {
+            loading.style.display = 'none';
+        }
+    }
+
+    function processarNaMemoria(data1, data2) {
+        const h1 = data1[0] || [];
+        const h2 = data2[0] || [];
+
+        const comp1 = h1.slice(5).filter(h => h && h.toString().trim());
+        const comp2 = h2.slice(5).filter(h => h && h.toString().trim());
+        globalComponentes = [...new Set([...comp1, ...comp2])];
+
+        globalData1 = mapearPorCGM(data1, h1);
+        globalData2 = mapearPorCGM(data2, h2);
+        globalAlunosCGM = [...new Set([...Object.keys(globalData1), ...Object.keys(globalData2)])];
+
+        globalAlunosCGM.sort((a, b) => {
+            let nomeA = ((globalData2[a]?.nome) || (globalData1[a]?.nome) || '').toUpperCase();
+            let nomeB = ((globalData2[b]?.nome) || (globalData1[b]?.nome) || '').toUpperCase();
+            return nomeA.localeCompare(nomeB);
+        });
+
+        construirFiltros();
+        document.getElementById('filter-panel').style.display = 'block';
+        renderizarTabela();
+    }
+
+    function mapearPorCGM(data, headers) {
+        const mapa = {};
+        for (let i = 1; i < data.length; i++) {
+            const row = data[i];
+            if (!row || row.length === 0 || !row[1]) continue;
+            const cgm = row[1];
+            mapa[cgm] = { nome: row[0], notas: {} };
+            for (let j = 5; j < headers.length; j++) {
+                if (headers[j]) mapa[cgm].notas[headers[j]] = row[j];
+            }
+        }
+        return mapa;
+    }
+
+    function construirFiltros() {
+        const container = document.getElementById('component-filters');
+        container.innerHTML = '';
+        globalComponentes.forEach((comp, index) => {
+            const label = document.createElement('label');
+            label.className = 'checkbox-item';
+            const cor = paletaCores[index % paletaCores.length];
+            label.style.borderLeft = `5px solid ${cor.header}`;
+            label.innerHTML = `<input type="checkbox" class="comp-checkbox" value="${comp}" checked onchange="renderizarTabela()"> ${comp}`;
+            container.appendChild(label);
+        });
+    }
+
+    function renderizarTabela() {
+        const container = document.getElementById('result-container');
+        const showDiff = document.getElementById('show-diff').checked;
+        const checkboxes = document.querySelectorAll('.comp-checkbox');
+        const componentesAtivos = Array.from(checkboxes).filter(cb => cb.checked).map(cb => cb.value);
+
+        if (componentesAtivos.length === 0) {
+            container.innerHTML = '<p style="text-align:center; padding: 20px;">Nenhum componente selecionado para exibição.</p>';
+            return;
+        }
+
+        const colSpanCount = showDiff ? 3 : 2;
+
+        let html = '<table><thead><tr id="header-row-1">';
+        html += '<th rowspan="2" class="sticky-col">Nome do Estudante</th>';
+        
+        componentesAtivos.forEach(comp => {
+            const index = globalComponentes.indexOf(comp);
+            const cor = paletaCores[index % paletaCores.length];
+            html += `<th colspan="${colSpanCount}" style="background-color: ${cor.header}; color: #fff;">${comp}</th>`;
+        });
+        html += '</tr><tr id="header-row-2">';
+
+        componentesAtivos.forEach(comp => {
+            const index = globalComponentes.indexOf(comp);
+            const cor = paletaCores[index % paletaCores.length];
+            html += `<th style="background-color: ${cor.header}; color: #fff;">Av. 1</th>`;
+            html += `<th style="background-color: ${cor.header}; color: #fff;">Av. 2</th>`;
+            if (showDiff) html += `<th style="background-color: ${cor.header}; color: #fff;">Dif.</th>`;
+        });
+        html += '</tr></thead><tbody>';
+
+        globalAlunosCGM.forEach(cgm => {
+            const aluno1 = globalData1[cgm];
+            const aluno2 = globalData2[cgm];
+            const nome = (aluno2?.nome) || (aluno1?.nome) || 'Desconhecido';
+
+            html += `<tr><td class="sticky-col">${nome}</td>`;
+
+            componentesAtivos.forEach(comp => {
+                const index = globalComponentes.indexOf(comp);
+                const cor = paletaCores[index % paletaCores.length];
+                const bgStyle = `background-color: ${cor.bg};`;
+
+                const n1 = (aluno1 && aluno1.notas[comp] != null) ? parseFloat(aluno1.notas[comp]) : NaN;
+                const n2 = (aluno2 && aluno2.notas[comp] != null) ? parseFloat(aluno2.notas[comp]) : NaN;
+
+                html += `<td style="${bgStyle}">${isNaN(n1) ? '-' : formatar(n1)}</td>`;
+                html += `<td style="${bgStyle}">${isNaN(n2) ? '-' : formatar(n2)}</td>`;
+
+                if (showDiff) {
+                    let difHtml = '-';
+                    if (!isNaN(n1) && !isNaN(n2)) {
+                        const diff = n2 - n1;
+                        if (diff > 0) difHtml = `<span class="positive">▲ +${formatar(diff)}</span>`;
+                        else if (diff < 0) difHtml = `<span class="negative">▼ ${formatar(diff)}</span>`;
+                        else difHtml = `<span class="neutral">= 0,0</span>`;
+                    }
+                    html += `<td style="${bgStyle}">${difHtml}</td>`;
+                }
+            });
+            html += `</tr>`;
+        });
+
+        html += '</tbody></table>';
+        container.innerHTML = html;
+
+        // JS TRICK CORRIGIDO: Pega a altura EXCLUSIVA do cabeçalho da disciplina
+        // usando a pseudoclasse :not([rowspan]) para evitar medir o 'Nome do Estudante'
+        setTimeout(() => {
+            const thDisciplina = document.querySelector('#header-row-1 th:not([rowspan])');
+            const row2Ths = document.querySelectorAll('#header-row-2 th');
+            if(thDisciplina && row2Ths.length > 0) {
+                const alturaExataLinha1 = thDisciplina.getBoundingClientRect().height;
+                row2Ths.forEach(th => {
+                    th.style.top = alturaExataLinha1 + 'px';
+                });
+            }
+        }, 50);
+    }
+
+    function formatar(valor) {
+        return valor.toLocaleString('pt-BR', { minimumFractionDigits: 1, maximumFractionDigits: 2 });
+    }
+
+    function exportarPDF() {
+        alert("Na janela que irá abrir, escolha a opção 'Salvar como PDF' ou 'Imprimir em PDF' no campo de destino/impressora e clique em Salvar.\n\nSugestão: Se houverem muitos componentes, use o layout 'Paisagem' nas definições de impressão.");
+        window.print();
+    }
+</script>
+
+</body>
+</html>
